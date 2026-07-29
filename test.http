@@ -1,0 +1,19 @@
+### Create Order
+POST http://localhost:5003/orders
+Content-Type: application/json
+
+{
+    "user_id": 1,
+    "product_id": 2,
+    "quantity": 2
+}
+
+###
+
+### Update Product Stock
+PUT http://localhost:5002/products/2/stock
+Content-Type: application/json
+
+{
+    "quantity": 2
+}

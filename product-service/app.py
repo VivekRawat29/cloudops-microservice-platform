@@ -1,33 +1,9 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from db import products_collection
 
 app = Flask(__name__)
-
-products = [
-    {
-        "id": 1,
-        "name": "Laptop",
-        "price": 65000,
-        "stock": 10
-    },
-    {
-        "id": 2,
-        "name": "Mechanical Keyboard",
-        "price": 3500,
-        "stock": 25
-    },
-    {
-        "id": 3,
-        "name": "Wireless Mouse",
-        "price": 1500,
-        "stock": 40
-    },
-    {
-        "id": 4,
-        "name": "Monitor",
-        "price": 18000,
-        "stock": 15
-    }
-]
+CORS(app)
 
 
 @app.route("/")
@@ -40,27 +16,82 @@ def home():
 
 @app.route("/products", methods=["GET"])
 def get_products():
+
+    products = []
+
+    for product in products_collection.find():
+        product["_id"] = str(product["_id"])
+        products.append(product)
+
     return jsonify(products)
+
 
 @app.route("/products/<int:product_id>", methods=["GET"])
 def get_product(product_id):
-    product = next(
-        (product for product in products if product["id"] == product_id),
-        None
-    )
+
+    product = products_collection.find_one({"id": product_id})
 
     if product is None:
         return jsonify({
             "error": "Product not found"
         }), 404
 
+    product["_id"] = str(product["_id"])
+
     return jsonify(product)
 
-@app.route("/health", methods=["GET"])
+
+@app.route("/products/<int:product_id>/stock", methods=["PUT"])
+def update_stock(product_id):
+
+    data = request.get_json()
+
+    quantity = data.get("quantity")
+
+    product = products_collection.find_one({"id": product_id})
+
+    if product is None:
+        return jsonify({
+            "error": "Product not found"
+        }), 404
+
+    if quantity is None:
+        return jsonify({
+            "error": "Quantity is required"
+        }), 400
+
+    if quantity <= 0:
+        return jsonify({
+            "error": "Quantity must be greater than zero"
+        }), 400
+
+    if product["stock"] < quantity:
+        return jsonify({
+            "error": "Insufficient stock"
+        }), 400
+
+    new_stock = product["stock"] - quantity
+
+    products_collection.update_one(
+        {"id": product_id},
+        {
+            "$set": {
+                "stock": new_stock
+            }
+        }
+    )
+
+    updated_product = products_collection.find_one({"id": product_id})
+    updated_product["_id"] = str(updated_product["_id"])
+
+    return jsonify(updated_product), 200
+
+
+@app.route("/health")
 def health():
     return jsonify({
         "status": "healthy"
-    }), 200
+    })
 
 
 if __name__ == "__main__":

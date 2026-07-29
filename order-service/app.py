@@ -1,26 +1,11 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from config import PRODUCT_SERVICE_URL
+from db import orders_collection
 import requests
 
 app = Flask(__name__)
-
-orders = [
-    {
-        "id": 1,
-        "user_id": 1,
-        "product_id": 2,
-        "quantity": 1,
-        "status": "confirmed"
-    },
-    {
-        "id": 2,
-        "user_id": 2,
-        "product_id": 1,
-        "quantity": 1,
-        "status": "shipped"
-    }
-]
-
+CORS(app)
 
 @app.route("/")
 def home():
@@ -32,29 +17,37 @@ def home():
 
 @app.route("/orders", methods=["GET"])
 def get_orders():
+
+    orders = []
+
+    for order in orders_collection.find():
+        order["_id"] = str(order["_id"])
+        orders.append(order)
+
     return jsonify(orders)
 
 
 @app.route("/orders", methods=["POST"])
 def create_order():
+
     data = request.get_json()
 
     product_id = data.get("product_id")
     quantity = data.get("quantity", 1)
+    user_id = data.get("user_id")
 
-    # Contact Product Service
+    # Step 1 - Get Product Details
     try:
         response = requests.get(
-    f"{PRODUCT_SERVICE_URL}/products/{product_id}",
-    timeout=5
-         )
-        
+            f"{PRODUCT_SERVICE_URL}/products/{product_id}",
+            timeout=5
+        )
+
     except requests.RequestException:
         return jsonify({
             "error": "Product Service is unavailable"
         }), 503
 
-    # Check whether product exists
     if response.status_code == 404:
         return jsonify({
             "error": "Product not found"
@@ -67,16 +60,45 @@ def create_order():
 
     product = response.json()
 
-    # Check available stock
+    # Step 2 - Check Stock
     if quantity > product["stock"]:
         return jsonify({
             "error": "Insufficient stock"
         }), 400
 
-    # Create order
+    # Step 3 - Reduce Stock
+    try:
+
+        stock_response = requests.put(
+            f"{PRODUCT_SERVICE_URL}/products/{product_id}/stock",
+            json={
+                "quantity": quantity
+            },
+            timeout=5
+        )
+
+    except requests.RequestException:
+        return jsonify({
+            "error": "Unable to update stock"
+        }), 503
+
+    if stock_response.status_code != 200:
+        return jsonify({
+            "error": "Stock update failed"
+        }), 400
+
+    # Step 4 - Generate Order ID
+    last_order = orders_collection.find_one(sort=[("id", -1)])
+
+    if last_order:
+        order_id = last_order["id"] + 1
+    else:
+        order_id = 1
+
+    # Step 5 - Create Order
     new_order = {
-        "id": len(orders) + 1,
-        "user_id": data.get("user_id"),
+        "id": order_id,
+        "user_id": user_id,
         "product_id": product_id,
         "product_name": product["name"],
         "quantity": quantity,
@@ -84,9 +106,12 @@ def create_order():
         "status": "confirmed"
     }
 
-    orders.append(new_order)
+    orders_collection.insert_one(new_order)
 
-    return jsonify(new_order), 201
+    saved_order = orders_collection.find_one({"id": order_id})
+    saved_order["_id"] = str(saved_order["_id"])
+
+    return jsonify(saved_order), 201
 
 
 @app.route("/health", methods=["GET"])
