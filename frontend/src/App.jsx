@@ -5,6 +5,9 @@ import Navbar from "./components/Navbar";
 import SummaryCard from "./components/SummaryCard";
 import ProductCard from "./components/ProductCard";
 import OrderCard from "./components/OrderCard";
+import CartSidebar from "./components/CartSidebar";
+import Checkout from "./Checkout";
+import OrderSuccess from "./OrderSuccess";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -13,6 +16,12 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
+
+  const [cart, setCart] = useState([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const fetchProducts = async () => {
     try {
@@ -39,32 +48,67 @@ function App() {
     fetchOrders();
   }, []);
 
-  const buyProduct = async (productId, quantity) => {
-    try {
-      const response = await fetch(`${API_URL}/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+  const addToCart = (product, quantity) => {
+    const existing = cart.find((item) => item.id === product.id);
+
+    if (existing) {
+      setCart(
+        cart.map((item) =>
+          item.id === product.id
+            ? {
+                ...item,
+                quantity: item.quantity + quantity,
+              }
+            : item
+        )
+      );
+    } else {
+      setCart([
+        ...cart,
+        {
+          ...product,
+          quantity,
         },
-        body: JSON.stringify({
-          user_id: 1,
-          product_id: productId,
-          quantity: quantity,
-        }),
-      });
+      ]);
+    }
 
-      const data = await response.json();
+    setMessage(`🛒 ${product.name} added to cart.`);
+  };
 
-      if (response.ok) {
-        setMessage(`✅ Order #${data.id} created successfully.`);
-        fetchProducts();
-        fetchOrders();
-      } else {
-        setMessage(`❌ ${data.error}`);
+  const removeFromCart = (id) => {
+    setCart(cart.filter((item) => item.id !== id));
+  };
+
+  const checkout = async () => {
+    if (cart.length === 0) return;
+
+    try {
+      for (const item of cart) {
+        await fetch(`${API_URL}/orders`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: 1,
+            product_id: item.id,
+            quantity: item.quantity,
+          }),
+        });
       }
+
+      setCart([]);
+      setIsCartOpen(false);
+      setShowCheckout(false);
+      setShowSuccess(true);
+
+      setMessage("✅ Order placed successfully.");
+
+      fetchProducts();
+      fetchOrders();
     } catch (error) {
       console.error(error);
-      setMessage("❌ Unable to connect to server.");
+      setMessage("❌ Checkout failed.");
     }
   };
 
@@ -77,9 +121,54 @@ function App() {
     product.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const cartCount = cart.reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
+
+  const totalAmount = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
+  if (showSuccess) {
+    return (
+      <OrderSuccess
+        continueShopping={() => {
+          setShowSuccess(false);
+        }}
+      />
+    );
+  }
+
+  if (showCheckout) {
+    return (
+      <Checkout
+        cart={cart}
+        total={totalAmount}
+        placeOrder={checkout}
+        back={() => setShowCheckout(false)}
+      />
+    );
+  }
+
   return (
     <>
-      <Navbar />
+      <Navbar
+        cartCount={cartCount}
+        openCart={() => setIsCartOpen(true)}
+      />
+
+      <CartSidebar
+        isOpen={isCartOpen}
+        cart={cart}
+        closeCart={() => setIsCartOpen(false)}
+        removeFromCart={removeFromCart}
+        goToCheckout={() => {
+          setIsCartOpen(false);
+          setShowCheckout(true);
+        }}
+      />
 
       <div className="container">
         {message && <p className="message">{message}</p>}
@@ -107,7 +196,7 @@ function App() {
             <ProductCard
               key={product.id}
               product={product}
-              buyProduct={buyProduct}
+              buyProduct={addToCart}
             />
           ))
         )}
@@ -118,10 +207,7 @@ function App() {
           <p>No orders yet.</p>
         ) : (
           orders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-            />
+            <OrderCard key={order.id} order={order} />
           ))
         )}
       </div>

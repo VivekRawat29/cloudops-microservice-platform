@@ -30,7 +30,7 @@ function ProductCard({ product, buyProduct }) {
       {product.stock === 0 ? (
         <p className="out-of-stock">🔴 Out of Stock</p>
       ) : product.stock <= 5 ? (
-        <p className="low-stock">⚠ Low Stock</p>
+        <p className="low-stock">⚠️ Low Stock</p>
       ) : null}
 
       <div className="quantity-container">
@@ -44,9 +44,9 @@ function ProductCard({ product, buyProduct }) {
       <button
         className="buy-btn"
         disabled={product.stock === 0}
-        onClick={() => buyProduct(product.id, quantity)}
+        onClick={() => buyProduct(product, quantity)}
       >
-        {product.stock === 0 ? "Out of Stock" : "Buy"}
+        {product.stock === 0 ? "Out of Stock" : "🛒 Add to Cart"}
       </button>
     </div>
   );
