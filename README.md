@@ -1,23 +1,28 @@
-# CloudOps - Microservices Platform
+# CloudOps Microservice Platform
 
-A production-ready microservices platform built using:
+CloudOps Microservice Platform is a cloud-native e-commerce application built using a microservices architecture. The project demonstrates modern DevOps practices, including containerization, orchestration, infrastructure as code, monitoring, logging, and CI/CD automation.
 
+## Tech Stack
+
+- React + Vite
 - Python Flask
-- Docker
+- Docker & Docker Compose
 - Kubernetes
-- Jenkins
 - Terraform
 - AWS
-- Prometheus
-- Grafana
-- Loki
+- Nginx
+- Prometheus & Grafana
+- GitHub Actions / Jenkins
 
-## Microservices
+## Features
 
-- User Service
-- Product Service
-- Order Service
-
-## Status
-
-Project is under development.
+- Product Management
+- Shopping Cart
+- Checkout System
+- Order Management
+- API Gateway
+- Containerized Microservices
+- Kubernetes Deployment
+- Infrastructure as Code
+- Monitoring & Logging
+- CI/CD Pipeline
