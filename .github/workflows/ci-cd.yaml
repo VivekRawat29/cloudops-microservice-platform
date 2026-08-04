@@ -1,0 +1,47 @@
+name: CloudOps CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Frontend Image
+        run: docker build -t frontend ./frontend
+
+      - name: Build Gateway Image
+        run: docker build -t gateway ./gateway
+
+      - name: Build User Service Image
+        run: docker build -t user-service ./user-service
+
+      - name: Build Product Service Image
+        run: docker build -t product-service ./product-service
+
+      - name: Build Order Service Image
+        run: docker build -t order-service ./order-service
+
+      - name: Verify Kubernetes Manifests
+        run: |
+          test -f kubernetes/frontend/deployment.yaml
+          test -f kubernetes/gateway/deployment.yaml
+          test -f kubernetes/user-service/deployment.yaml
+          test -f kubernetes/product-service/deployment.yaml
+          test -f kubernetes/order-service/deployment.yaml
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
