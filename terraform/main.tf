@@ -7,6 +7,7 @@ resource "aws_vpc" "cloudops_vpc" {
     Name = "${var.project_name}-vpc"
   }
 }
+
 resource "aws_subnet" "public_subnet" {
   vpc_id                  = aws_vpc.cloudops_vpc.id
   cidr_block              = "10.0.1.0/24"
@@ -17,6 +18,7 @@ resource "aws_subnet" "public_subnet" {
     Name = "${var.project_name}-public-subnet"
   }
 }
+
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.cloudops_vpc.id
 
@@ -24,6 +26,7 @@ resource "aws_internet_gateway" "igw" {
     Name = "${var.project_name}-igw"
   }
 }
+
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.cloudops_vpc.id
 
@@ -36,10 +39,12 @@ resource "aws_route_table" "public_rt" {
     Name = "${var.project_name}-public-rt"
   }
 }
+
 resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
+
 resource "aws_security_group" "cloudops_sg" {
   name        = "${var.project_name}-sg"
   description = "Security Group for CloudOps EC2"
@@ -57,6 +62,14 @@ resource "aws_security_group" "cloudops_sg" {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Gateway API"
+    from_port   = 8080
+    to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -80,6 +93,41 @@ resource "aws_security_group" "cloudops_sg" {
     Name = "${var.project_name}-sg"
   }
 }
+
+# SSM IAM Role
+resource "aws_iam_role" "ssm_role" {
+  name = "${var.project_name}-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+# SSM Policy
+resource "aws_iam_role_policy_attachment" "ssm_policy" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# EC2 Instance Profile
+resource "aws_iam_instance_profile" "ssm_profile" {
+  name = "${var.project_name}-ssm-profile"
+  role = aws_iam_role.ssm_role.name
+}
+
+# EC2 Instance
 resource "aws_instance" "cloudops_ec2" {
   ami           = "ami-0cda11afd45b74b89"
   instance_type = "t3.micro"
@@ -89,7 +137,10 @@ resource "aws_instance" "cloudops_ec2" {
 
   associate_public_ip_address = true
 
-  key_name = "linux-devops"
+  key_name = "cloudops-deploy-v2"
+
+  # Attach SSM IAM role to EC2
+  iam_instance_profile = aws_iam_instance_profile.ssm_profile.name
 
   tags = {
     Name = "${var.project_name}-ec2"

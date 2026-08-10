@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: product-seeder
+  namespace: cloudops
+
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: product-seeder
+          image: python:3.13-slim
+
+          command:
+            - sh
+            - -c
+            - |
+              pip install pymongo python-dotenv -q
+              python /seed/seed.py
+
+          env:
+            - name: MONGO_URI
+              value: "mongodb://mongodb:27017"
+
+            - name: DATABASE_NAME
+              value: "cloudops"
+
+            - name: COLLECTION_NAME
+              value: "products"
+
+          volumeMounts:
+            - name: seed-files
+              mountPath: /seed
+
+      volumes:
+        - name: seed-files
+          configMap:
+            name: product-seed
